@@ -14,10 +14,10 @@ const MainLayout: React.FC = () => {
 
   const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/', roles: [] },
-    { label: 'Users', icon: Users, path: '/admin/users', roles: ['SYSTEM_ADMIN'] },
-    { label: 'Branches', icon: Store, path: '/branches', roles: ['SYSTEM_ADMIN', 'HQ_MANAGER'] },
-    { label: 'Orders', icon: ShoppingBag, path: '/orders', roles: ['WAITER', 'CASHIER', 'BRANCH_MANAGER', 'SYSTEM_ADMIN', 'HQ_MANAGER', 'HEAD_CHEF', 'CHIEF_SUPERVISOR'] },
-    { label: 'Reports', icon: BarChart3, path: '/reports', roles: ['HQ_MANAGER', 'SYSTEM_ADMIN'] },
+    { label: 'Users', icon: Users, path: '/admin/users', roles: ['ADMIN'] },
+    { label: 'Branches', icon: Store, path: '/branches', roles: ['ADMIN', 'HQ_MANAGER'] },
+    { label: 'Orders', icon: ShoppingBag, path: '/orders', roles: ['WAITER', 'BRANCH_MANAGER', 'ADMIN', 'HQ_MANAGER'] },
+    { label: 'Reports', icon: BarChart3, path: '/reports', roles: ['HQ_MANAGER', 'ADMIN'] },
   ];
 
   const filteredNavItems = navItems.filter(item => 
