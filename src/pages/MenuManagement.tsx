@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Utensils, Plus, Edit, Trash2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Utensils, Plus, Edit, Trash2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../api/axiosConfig';
 
@@ -21,13 +22,17 @@ interface MenuItem {
 
 const MenuManagement: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(searchParams.get('branchId') ?? '');
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
+  const isOpenAccess = user?.role === 'OPEN_ACCESS';
   const canManageMenu = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+  const showBranchSelector = isOpenAccess || user?.role === 'ADMIN' || user?.role === 'HQ_MANAGER';
 
   useEffect(() => {
     const fetchBranches = async () => {
@@ -36,6 +41,15 @@ const MenuManagement: React.FC = () => {
           if (!user.branch_id) return;
           setBranches([{ id: user.branch_id, name: 'My Branch' }]);
           setSelectedBranchId(user.branch_id);
+          return;
+        }
+
+        if (isOpenAccess) {
+          const response = await api.get('/branches/public');
+          setBranches(response.data || []);
+          if (!selectedBranchId && response.data.length > 0) {
+            setSelectedBranchId(response.data[0].id);
+          }
           return;
         }
 
@@ -50,14 +64,14 @@ const MenuManagement: React.FC = () => {
     };
 
     fetchBranches();
-  }, [user, selectedBranchId]);
+  }, [user, selectedBranchId, isOpenAccess]);
 
   useEffect(() => {
     if (!selectedBranchId) return;
 
     const fetchMenu = async () => {
       try {
-        const response = await api.get(`/branches/${selectedBranchId}/menu`);
+        const response = await api.get(`/branches/public/${selectedBranchId}/menu`);
         setMenuItems(response.data);
       } catch (error: unknown) {
         toast.error('Failed to load menu items');
@@ -65,7 +79,10 @@ const MenuManagement: React.FC = () => {
     };
 
     fetchMenu();
-  }, [selectedBranchId]);
+    if (isOpenAccess) {
+      setSearchParams({ branchId: selectedBranchId });
+    }
+  }, [selectedBranchId, isOpenAccess, setSearchParams]);
 
   const handleAddItem = () => {
     setSelectedItem(null);
@@ -135,18 +152,31 @@ const MenuManagement: React.FC = () => {
     }
   };
 
+  const filteredMenuItems = isOpenAccess
+    ? menuItems.filter((item) =>
+        item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.category ?? '').toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : menuItems;
+
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div className="flex items-center">
           <Utensils className="w-10 h-10 mr-4 text-green-500" />
           <div>
-            <h1 className="text-4xl font-bold text-gray-800">Menu Management</h1>
-            <p className="text-gray-600">Manage menu items for your assigned branch.</p>
+            <h1 className="text-4xl font-bold text-gray-800">
+              {isOpenAccess ? 'Browse Public Menu' : 'Menu Management'}
+            </h1>
+            <p className="text-gray-600">
+              {isOpenAccess
+                ? 'Select a branch to view available dishes and prices.'
+                : 'Manage menu items for your assigned branch.'}
+            </p>
           </div>
         </div>
         {canManageMenu && (
-          <button 
+          <button
             onClick={handleAddItem}
             className="flex items-center bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition"
           >
@@ -155,7 +185,7 @@ const MenuManagement: React.FC = () => {
         )}
       </div>
 
-      {branches.length > 0 && (user?.role === 'ADMIN' || user?.role === 'HQ_MANAGER') && (
+      {branches.length > 0 && showBranchSelector && (
         <div className="mb-6">
           <label className="block text-gray-700 mb-2">Select Branch</label>
           <select
@@ -170,6 +200,22 @@ const MenuManagement: React.FC = () => {
         </div>
       )}
 
+      {isOpenAccess && (
+        <div className="mb-6">
+          <label className="block text-gray-700 mb-2">Search menu items</label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search dishes, categories or keywords"
+              className="w-full pl-10 pr-4 py-2 border rounded"
+            />
+          </div>
+        </div>
+      )}
+
       <div className="bg-white shadow-md rounded-lg overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-100">
@@ -178,11 +224,11 @@ const MenuManagement: React.FC = () => {
               <th className="px-4 py-3 text-left">Category</th>
               <th className="px-4 py-3 text-left">Price</th>
               <th className="px-4 py-3 text-left">Status</th>
-              {(canManageMenu) && <th className="px-4 py-3 text-right">Actions</th>}
+              {canManageMenu && <th className="px-4 py-3 text-right">Actions</th>}
             </tr>
           </thead>
           <tbody>
-            {menuItems.map((item) => (
+            {filteredMenuItems.map((item) => (
               <tr key={item.id} className="border-b hover:bg-gray-50">
                 <td className="px-4 py-3">{item.item_name}</td>
                 <td className="px-4 py-3">{item.category || 'Uncategorized'}</td>
@@ -278,14 +324,14 @@ const MenuManagement: React.FC = () => {
                 <label htmlFor="availability" className="text-gray-700">Available</label>
               </div>
               <div className="flex justify-end space-x-2">
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   type="submit"
                   className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
                 >

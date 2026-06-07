@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Loader from '../components/Loader';
 import ErrorBoundary from '../components/ErrorBoundary';
+import MainLayout from '@/components/MainLayout';
 
 const Login = lazy(() => import('../pages/Login').then(module => ({ default: module.default })));
 const Dashboard = lazy(() => import('../pages/Dashboard').then(module => ({ default: module.default })));
@@ -29,12 +30,14 @@ const AppRoutes: React.FC = () => {
               <Login />
             </ErrorBoundary>
           } />
+          <Route path="/" element={<MainLayout />}>
+
           <Route 
             path="/dashboard" 
             element={
               <ProtectedRoute>
                 <ErrorBoundary>
-                  <Dashboard />
+                     <Dashboard />
                 </ErrorBoundary>
               </ProtectedRoute>
             } 
@@ -62,7 +65,7 @@ const AppRoutes: React.FC = () => {
           <Route 
             path="/menu" 
             element={
-              <ProtectedRoute requiredRoles={['BRANCH_MANAGER', 'HQ_MANAGER', 'ADMIN', 'WAITER']}>
+              <ProtectedRoute requiredRoles={['BRANCH_MANAGER', 'HQ_MANAGER', 'ADMIN', 'WAITER', 'OPEN_ACCESS']}>
                 <ErrorBoundary>
                   <MenuManagement />
                 </ErrorBoundary>
@@ -109,6 +112,8 @@ const AppRoutes: React.FC = () => {
               </ProtectedRoute>
             } 
           />
+          </Route>
+
           <Route path="/register" element={
             <ErrorBoundary>
               <Register />
