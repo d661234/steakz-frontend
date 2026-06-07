@@ -13,6 +13,24 @@ export class BranchController {
     }
   }
 
+  static async getPublicBranches(req: Request, res: Response) {
+    try {
+      const branches = await BranchService.getPublicBranches();
+      res.status(200).json(branches);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch public branches' });
+    }
+  }
+
+  static async getPublicMenuByBranch(req: Request, res: Response) {
+    try {
+      const menu = await BranchService.getPublicMenuByBranch(req.params.branchId as string);
+      res.status(200).json(menu);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch public menu' });
+    }
+  }
+
   static async getBranchById(req: Request, res: Response) {
     try {
       const branch = await BranchService.getBranchById(req.params.id as string);

@@ -6,6 +6,10 @@ import { UserRole } from '@prisma/client';
 
 const router = Router();
 
+// Public branch browsing for open access users
+router.get('/public', BranchController.getPublicBranches);
+router.get('/public/:branchId/menu', BranchController.getPublicMenuByBranch);
+
 router.use(authenticateJWT);
 
 // Branch Management (Admin only)

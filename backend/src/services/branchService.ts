@@ -23,6 +23,26 @@ export class BranchService {
     });
   }
 
+  static async getPublicBranches() {
+    return prisma.branch.findMany({
+      where: { isActive: true },
+      include: {
+        menuItems: {
+          where: { availability_status: true }
+        }
+      }
+    });
+  }
+
+  static async getPublicMenuByBranch(branchId: string) {
+    return prisma.menuItem.findMany({
+      where: {
+        branch_id: branchId,
+        availability_status: true
+      }
+    });
+  }
+
   static async createBranch(data: Prisma.BranchCreateInput) {
     return prisma.branch.create({
       data,

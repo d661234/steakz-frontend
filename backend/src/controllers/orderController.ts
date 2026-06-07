@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { UserRole } from '@prisma/client';
 import { OrderService } from '../services/orderService.js';
 import { AuthRequest } from '../middleware/auth.js';
 
@@ -49,6 +50,24 @@ export class OrderController {
       res.status(200).json(order);
     } catch (error) {
       res.status(500).json({ message: 'Failed to update order status' });
+    }
+  }
+
+  static async confirmPayment(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+      const order = await OrderService.getOrderById(req.params.id as string);
+      if (!order) return res.status(404).json({ message: 'Order not found' });
+
+      if (req.user.role === UserRole.CUSTOMER && order.customer_id !== req.user.id) {
+        return res.status(403).json({ message: 'Forbidden: Order does not belong to customer' });
+      }
+
+      const updatedOrder = await OrderService.confirmOrderPayment(req.params.id as string);
+      res.status(200).json(updatedOrder);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to confirm payment' });
     }
   }
 }

@@ -10,7 +10,11 @@ router.use(authenticateJWT);
 router.use(authorize([UserRole.HQ_MANAGER, UserRole.ADMIN]));
 
 router.get('/analytics/sales', HQController.getSalesAnalytics);
-router.get('/reports/branches', HQController.getBranchPerformance);
+router.get('/analytics/branches', HQController.getBranchPerformance);
+router.get('/analytics/global-stats', HQController.getGlobalStats);
+router.get('/analytics/peak-times', HQController.getPeakTimes);
+router.get('/analytics/customer-frequency', HQController.getCustomerFrequency);
+router.get('/analytics/top-menu-items', HQController.getMostViewedMenuItems);
 router.get('/staff', HQController.getAllStaff);
 router.post('/staff/assign', HQController.assignStaffToBranch);
 

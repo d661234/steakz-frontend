@@ -1,10 +1,9 @@
 import { PrismaClient, UserRole } from '@prisma/client';
-import { checkPermission } from '../middleware/rbac.js';
 
 const prisma = new PrismaClient();
 
 export class RoleService {
-  async changeUserRole(
+  static async changeUserRole(
     adminId: string, 
     userId: string, 
     newRole: UserRole
@@ -38,7 +37,7 @@ export class RoleService {
     });
   }
 
-  async deactivateUser(adminId: string, userId: string) {
+  static async deactivateUser(adminId: string, userId: string) {
     const admin = await prisma.user.findUnique({ where: { id: adminId } });
     
     if (!admin || admin.role !== UserRole.ADMIN) {
@@ -51,7 +50,7 @@ export class RoleService {
     });
   }
 
-  async getUserActivitySummary() {
+  static async getUserActivitySummary() {
     const totalUsers = await prisma.user.count();
     const activeUsers = await prisma.user.count({ where: { isActive: true } });
     const usersByRole = await prisma.user.groupBy({
@@ -64,5 +63,16 @@ export class RoleService {
       activeUsers,
       usersByRole
     };
+  }
+
+  static async getRoleChangeAudit() {
+    return prisma.roleChangeAudit.findMany({
+      orderBy: { changedAt: 'desc' },
+      include: {
+        user: {
+          select: { id: true, email: true, firstName: true, lastName: true }
+        }
+      }
+    });
   }
 }

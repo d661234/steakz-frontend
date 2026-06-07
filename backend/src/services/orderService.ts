@@ -36,6 +36,13 @@ export class OrderService {
     });
   }
 
+  static async confirmOrderPayment(id: string) {
+    return prisma.order.update({
+      where: { id },
+      data: { status: 'PAID' },
+    });
+  }
+
   static async getOrdersByCustomer(customerId: string) {
     return prisma.order.findMany({
       where: { customer_id: customerId },

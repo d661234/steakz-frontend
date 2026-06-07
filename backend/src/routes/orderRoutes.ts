@@ -17,5 +17,6 @@ router.post('/', authorize([UserRole.CUSTOMER, UserRole.WAITER, UserRole.ADMIN])
 
 // Status updates
 router.patch('/:id/status', authorize([UserRole.WAITER, UserRole.BRANCH_MANAGER, UserRole.ADMIN]), OrderController.updateStatus);
+router.patch('/:id/confirm', authorize([UserRole.CUSTOMER, UserRole.WAITER, UserRole.BRANCH_MANAGER, UserRole.ADMIN]), OrderController.confirmPayment);
 
 export default router;

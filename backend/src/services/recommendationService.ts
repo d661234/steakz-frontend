@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export class RecommendationService {
-  async getRecommendationsBasedOnFavourites(userId: string) {
+  static async getRecommendationsBasedOnFavourites(userId: string) {
     // Find user's favourite items
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -41,7 +41,7 @@ export class RecommendationService {
     return recommendations;
   }
 
-  async getOneClickReorder(userId: string, orderId: string) {
+  static async getOneClickReorder(userId: string, orderId: string) {
     const order = await prisma.order.findFirst({
       where: { 
         id: orderId,

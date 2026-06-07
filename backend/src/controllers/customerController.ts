@@ -2,6 +2,7 @@ import { Response } from 'express';
 import prisma from '../lib/prisma.js';
 import { UserService } from '../services/userService.js';
 import { OrderService } from '../services/orderService.js';
+import { RecommendationService } from '../services/recommendationService.js';
 import { AuthRequest } from '../middleware/auth.js';
 
 export class CustomerController {
@@ -72,6 +73,32 @@ export class CustomerController {
       res.status(200).json(updatedUser.favouriteItems);
     } catch (error) {
       res.status(500).json({ message: 'Failed to toggle favourite item' });
+    }
+  }
+
+  static async getRecommendations(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+      const recommendations = await RecommendationService.getRecommendationsBasedOnFavourites(req.user.id);
+      res.status(200).json(recommendations);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch recommendations' });
+    }
+  }
+
+  static async reorder(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+      const orderId = req.params.orderId as string;
+      if (!orderId) {
+        return res.status(400).json({ message: 'Order ID is required' });
+      }
+
+      const order = await RecommendationService.getOneClickReorder(req.user.id, orderId);
+      res.status(201).json(order);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to reorder';
+      res.status(500).json({ message });
     }
   }
 }

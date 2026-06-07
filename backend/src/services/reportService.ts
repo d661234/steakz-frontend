@@ -61,6 +61,59 @@ export class ReportService {
     });
   }
 
+  static async getPeakOrderTimes() {
+    const orders = await prisma.order.findMany({
+      where: { status: 'PAID' },
+      select: { orderDate: true }
+    });
+
+    const hourlyCounts: Record<number, number> = {};
+
+    orders.forEach((order) => {
+      const hour = order.orderDate.getHours();
+      hourlyCounts[hour] = (hourlyCounts[hour] || 0) + 1;
+    });
+
+    return Object.entries(hourlyCounts)
+      .map(([hour, count]) => ({ hour: Number(hour), orderCount: count }))
+      .sort((a, b) => b.orderCount - a.orderCount);
+  }
+
+  static async getCustomerFrequency() {
+    const frequency = await prisma.order.groupBy({
+      by: ['customer_id'],
+      _count: { id: true },
+      where: {
+        customer_id: { not: null }
+      }
+    });
+
+    const customerIds = frequency.map(item => item.customer_id).filter(Boolean) as string[];
+    const customers = await prisma.user.findMany({
+      where: { id: { in: customerIds } },
+      select: { id: true, firstName: true, lastName: true, email: true }
+    });
+
+    return frequency
+      .map(item => ({
+        customerId: item.customer_id,
+        orderCount: item._count.id,
+        customerName: customers.find(c => c.id === item.customer_id)
+          ? `${customers.find(c => c.id === item.customer_id)?.firstName ?? ''} ${customers.find(c => c.id === item.customer_id)?.lastName ?? ''}`.trim()
+          : 'Unknown Customer',
+        email: customers.find(c => c.id === item.customer_id)?.email ?? 'unknown'
+      }))
+      .sort((a, b) => b.orderCount - a.orderCount);
+  }
+
+  static async getMostViewedMenuItems() {
+    return prisma.menuItem.findMany({
+      where: { availability_status: true },
+      orderBy: { viewCount: 'desc' },
+      take: 10,
+    });
+  }
+
   static async getGlobalStats() {
     const totalSales = await prisma.order.aggregate({
       _sum: {

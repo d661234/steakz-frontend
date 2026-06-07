@@ -84,4 +84,31 @@ export class HQController {
       res.status(500).json({ message: 'Failed to fetch global stats' });
     }
   }
+
+  static async getPeakTimes(req: Request, res: Response) {
+    try {
+      const peakTimes = await ReportService.getPeakOrderTimes();
+      res.status(200).json(peakTimes);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch peak times' });
+    }
+  }
+
+  static async getCustomerFrequency(req: Request, res: Response) {
+    try {
+      const frequency = await ReportService.getCustomerFrequency();
+      res.status(200).json(frequency);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch customer frequency' });
+    }
+  }
+
+  static async getMostViewedMenuItems(req: Request, res: Response) {
+    try {
+      const items = await ReportService.getMostViewedMenuItems();
+      res.status(200).json(items);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch most viewed menu items' });
+    }
+  }
 }
