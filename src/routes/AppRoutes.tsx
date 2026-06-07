@@ -11,6 +11,7 @@ const Branches = lazy(() => import('../pages/Branches').then(module => ({ defaul
 const MenuManagement = lazy(() => import('../pages/MenuManagement').then(module => ({ default: module.default })));
 const Orders = lazy(() => import('../pages/Orders').then(module => ({ default: module.default })));
 const Reports = lazy(() => import('../pages/Reports').then(module => ({ default: module.default })));
+const Recommendations = lazy(() => import('../pages/Recommendations').then(module => ({ default: module.default })));
 const Settings = lazy(() => import('../pages/Settings').then(module => ({ default: module.default })));
 const Register = lazy(() => import('../pages/Register').then(module => ({ default: module.default })));
 
@@ -84,6 +85,16 @@ const AppRoutes: React.FC = () => {
               <ProtectedRoute requiredRoles={['HQ_MANAGER', 'ADMIN']}>
                 <ErrorBoundary>
                   <Reports />
+                </ErrorBoundary>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/recommendations" 
+            element={
+              <ProtectedRoute requiredRoles={['CUSTOMER', 'ADMIN']}>
+                <ErrorBoundary>
+                  <Recommendations />
                 </ErrorBoundary>
               </ProtectedRoute>
             } 

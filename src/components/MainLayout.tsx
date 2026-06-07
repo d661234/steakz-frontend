@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, LogOut, Store, Menu as MenuIcon, ShoppingBag, BarChart3, Users } from 'lucide-react';
+import { LayoutDashboard, LogOut, Store, Menu as MenuIcon, ShoppingBag, BarChart3, Users, Star } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -17,6 +17,7 @@ const MainLayout: React.FC = () => {
     { label: 'Users', icon: Users, path: '/admin/users', roles: ['ADMIN'] },
     { label: 'Branches', icon: Store, path: '/branches', roles: ['ADMIN', 'HQ_MANAGER'] },
     { label: 'Orders', icon: ShoppingBag, path: '/orders', roles: ['WAITER', 'BRANCH_MANAGER', 'ADMIN', 'HQ_MANAGER'] },
+    { label: 'Recommendations', icon: Star, path: '/recommendations', roles: ['CUSTOMER', 'ADMIN'] },
     { label: 'Reports', icon: BarChart3, path: '/reports', roles: ['HQ_MANAGER', 'ADMIN'] },
   ];
 

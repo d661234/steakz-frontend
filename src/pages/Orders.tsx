@@ -171,8 +171,8 @@ const Orders: React.FC = () => {
                 <td className="px-4 py-3">#{order.id}</td>
                 <td className="px-4 py-3">{order.branch?.name || 'Unknown'}</td>
                 <td className="px-4 py-3">{order.user ? `${order.user.firstName || ''} ${order.user.lastName || ''}`.trim() || order.user.email : 'N/A'}</td>
-                <td className="px-4 py-3">{order.items.map((item) => `${item.menuItem.item_name}(${item.quantity})`).join(', ')}</td>
-                <td className="px-4 py-3">${order.total_amount.toFixed(2)}</td>
+                <td className="px-4 py-3">{(order.items || []).map((item) => `${item.menuItem?.item_name || 'Item'}(${item.quantity})`).join(', ')}</td>
+                <td className="px-4 py-3">${order.total_amount?.toFixed ? order.total_amount.toFixed(2) : '0.00'}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-1 rounded text-xs ${order.status === 'PAID' || order.status === 'FINISHED_COOKING' ? 'bg-green-100 text-green-800' : order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
                     {order.status}

@@ -4,7 +4,8 @@ import {
   ShoppingCart, 
   BarChart2, 
   Settings, 
-  Truck 
+  Truck, 
+  Star 
 } from 'lucide-react';
 import AnimatedBackground from '../components/AnimatedBackground';
 import InteractiveCard from '../components/InteractiveCard';
@@ -45,6 +46,13 @@ const Dashboard: React.FC = () => {
       icon: <Truck className="w-8 h-8 text-orange-500" />,
       roles: ['BRANCH_MANAGER', 'HQ_MANAGER', 'ADMIN'],
       route: '/branches'
+    },
+    {
+      title: 'Recommendations',
+      description: 'Review personalised dish recommendations',
+      icon: <Star className="w-8 h-8 text-yellow-500" />,
+      roles: ['CUSTOMER', 'ADMIN'],
+      route: '/recommendations'
     },
     {
       title: 'System Settings',

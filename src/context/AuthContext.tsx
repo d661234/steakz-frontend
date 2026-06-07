@@ -30,35 +30,48 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+  const clearAuthStorage = () => {
+    localStorage.removeItem('steakz_token');
+    localStorage.removeItem('steakz_user');
+    localStorage.removeItem('steakz_session_expiry');
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('steakz_token');
     const storedUser = localStorage.getItem('steakz_user');
+    const expiry = localStorage.getItem('steakz_session_expiry');
 
-    if (token && storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-        setIsAuthenticated(true);
-      } catch (error) {
-        // Clear invalid stored data
-        localStorage.removeItem('steakz_token');
-        localStorage.removeItem('steakz_user');
+    if (token && storedUser && expiry) {
+      const expiryTime = Number(expiry);
+      if (Date.now() < expiryTime) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          setIsAuthenticated(true);
+          return;
+        } catch (error) {
+          // fall through to clear invalid stored data
+        }
       }
     }
+
+    clearAuthStorage();
   }, []);
 
   const login = (token: string, userData: User) => {
+    const expiryTime = Date.now() + ONE_WEEK_MS;
     localStorage.setItem('steakz_token', token);
     localStorage.setItem('steakz_user', JSON.stringify(userData));
+    localStorage.setItem('steakz_session_expiry', expiryTime.toString());
     setUser(userData);
     setIsAuthenticated(true);
     toast.success(`Welcome, ${userData.firstName || userData.email}!`);
   };
 
   const logout = () => {
-    localStorage.removeItem('steakz_token');
-    localStorage.removeItem('steakz_user');
+    clearAuthStorage();
     setUser(null);
     setIsAuthenticated(false);
     toast.success('Logged out successfully');
