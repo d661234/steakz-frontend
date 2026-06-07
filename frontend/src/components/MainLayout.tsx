@@ -13,10 +13,11 @@ const MainLayout: React.FC = () => {
   };
 
   const navItems = [
-    { label: 'Dashboard', icon: LayoutDashboard, path: '/', roles: [] },
+    { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', roles: ['ADMIN', 'HQ_MANAGER'] },
     { label: 'Users', icon: Users, path: '/admin/users', roles: ['ADMIN'] },
-    { label: 'Branches', icon: Store, path: '/branches', roles: ['ADMIN', 'HQ_MANAGER'] },
+    { label: 'Branches', icon: Store, path: '/branches', roles: ['ADMIN', 'HQ_MANAGER', 'BRANCH_MANAGER', 'OPEN_ACCESS'] },
     { label: 'Orders', icon: ShoppingBag, path: '/orders', roles: ['WAITER', 'BRANCH_MANAGER', 'ADMIN', 'HQ_MANAGER'] },
+    { label: 'Menu', icon: MenuIcon, path: '/menu', roles: ['BRANCH_MANAGER', 'HQ_MANAGER', 'ADMIN', 'WAITER', 'OPEN_ACCESS'] },
     { label: 'Recommendations', icon: Star, path: '/recommendations', roles: ['CUSTOMER', 'ADMIN'] },
     { label: 'Reports', icon: BarChart3, path: '/reports', roles: ['HQ_MANAGER', 'ADMIN'] },
   ];
