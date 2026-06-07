@@ -1,62 +1,108 @@
-import React, { useState } from 'react';
+﻿import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Users, Plus, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import api from '../api/axiosConfig';
 
 interface User {
   id: string;
-  name: string;
   email: string;
   role: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 const AdminUsers: React.FC = () => {
   const { user } = useAuth();
-  const [users, setUsers] = useState<User[]>([
-    { id: '1', name: 'John Doe', email: 'john@example.com', role: 'ADMIN' },
-    { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'HQ_MANAGER' },
-    { id: '3', name: 'Mike Johnson', email: 'mike@example.com', role: 'BRANCH_MANAGER' }
-  ]);
-
+  const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [password, setPassword] = useState('');
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const response = await api.get('/admin/users');
+      setUsers(response.data);
+    } catch (error: unknown) {
+      toast.error('Failed to load users');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const handleAddUser = () => {
     setSelectedUser(null);
+    setPassword('');
     setIsModalOpen(true);
   };
 
   const handleEditUser = (user: User) => {
     setSelectedUser(user);
+    setPassword('');
     setIsModalOpen(true);
   };
 
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = async (userId: string) => {
     const confirmDelete = window.confirm('Are you sure you want to delete this user?');
-    if (confirmDelete) {
-      setUsers(users.filter(u => u.id !== userId));
+    if (!confirmDelete) return;
+
+    try {
+      await api.delete(`/admin/users/${userId}`);
       toast.success('User deleted successfully');
+      fetchUsers();
+    } catch (error: unknown) {
+      toast.error('Failed to delete user');
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (selectedUser) {
-      // Update existing user
-      setUsers(users.map(u => u.id === selectedUser.id ? selectedUser : u));
-      toast.success('User updated successfully');
-    } else {
-      // Add new user
-      const newUser: User = {
-        id: String(users.length + 1),
-        name: (e.target as any).name.value,
-        email: (e.target as any).email.value,
-        role: (e.target as any).role.value
-      };
-      setUsers([...users, newUser]);
-      toast.success('User added successfully');
+
+    const form = e.currentTarget;
+    const email = (form.elements.namedItem('email') as HTMLInputElement).value;
+    const firstName = (form.elements.namedItem('firstName') as HTMLInputElement).value;
+    const lastName = (form.elements.namedItem('lastName') as HTMLInputElement).value;
+    const role = (form.elements.namedItem('role') as HTMLSelectElement).value;
+
+    try {
+      if (selectedUser) {
+        await api.put(`/admin/users/${selectedUser.id}`, {
+          email,
+          firstName,
+          lastName,
+          role,
+        });
+        toast.success('User updated successfully');
+      } else {
+        if (!password) {
+          toast.error('Password is required when creating a user');
+          return;
+        }
+
+        const response = await api.post('/auth/register', {
+          email,
+          password,
+          role,
+        });
+
+        const newUser = response.data;
+        if (firstName || lastName) {
+          await api.put(`/admin/users/${newUser.id}`, {
+            firstName,
+            lastName,
+          });
+        }
+
+        toast.success('User created successfully');
+      }
+
+      setIsModalOpen(false);
+      fetchUsers();
+    } catch (error: unknown) {
+      toast.error('Failed to save user');
     }
-    setIsModalOpen(false);
   };
 
   return (
@@ -74,45 +120,43 @@ const AdminUsers: React.FC = () => {
         </button>
       </div>
 
-      {user && (
-        <div className="bg-white shadow-md rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-4 py-3 text-left">Name</th>
-                <th className="px-4 py-3 text-left">Email</th>
-                <th className="px-4 py-3 text-left">Role</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="px-4 py-3 text-left">Name</th>
+              <th className="px-4 py-3 text-left">Email</th>
+              <th className="px-4 py-3 text-left">Role</th>
+              <th className="px-4 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id} className="border-b hover:bg-gray-50">
+                <td className="px-4 py-3">{`${u.firstName || ''} ${u.lastName || ''}`.trim() || 'No name'}</td>
+                <td className="px-4 py-3">{u.email}</td>
+                <td className="px-4 py-3">{u.role}</td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex justify-end space-x-2">
+                    <button 
+                      onClick={() => handleEditUser(u)}
+                      className="text-blue-500 hover:text-blue-700"
+                    >
+                      <Edit className="w-5 h-5" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteUser(u.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {users.map(u => (
-                <tr key={u.id} className="border-b hover:bg-gray-50">
-                  <td className="px-4 py-3">{u.name}</td>
-                  <td className="px-4 py-3">{u.email}</td>
-                  <td className="px-4 py-3">{u.role}</td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end space-x-2">
-                      <button 
-                        onClick={() => handleEditUser(u)}
-                        className="text-blue-500 hover:text-blue-700"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteUser(u.id)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -122,12 +166,20 @@ const AdminUsers: React.FC = () => {
             </h2>
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2">Name</label>
+                <label className="block text-gray-700 mb-2">First Name</label>
                 <input 
                   type="text" 
-                  name="name" 
-                  defaultValue={selectedUser?.name}
-                  required 
+                  name="firstName" 
+                  defaultValue={selectedUser?.firstName}
+                  className="w-full px-3 py-2 border rounded" 
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-2">Last Name</label>
+                <input 
+                  type="text" 
+                  name="lastName" 
+                  defaultValue={selectedUser?.lastName}
                   className="w-full px-3 py-2 border rounded" 
                 />
               </div>
@@ -141,11 +193,23 @@ const AdminUsers: React.FC = () => {
                   className="w-full px-3 py-2 border rounded" 
                 />
               </div>
+              {!selectedUser && (
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">Password</label>
+                  <input 
+                    type="password" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required 
+                    className="w-full px-3 py-2 border rounded" 
+                  />
+                </div>
+              )}
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">Role</label>
                 <select 
                   name="role" 
-                  defaultValue={selectedUser?.role}
+                  defaultValue={selectedUser?.role || 'CUSTOMER'}
                   required 
                   className="w-full px-3 py-2 border rounded"
                 >
@@ -154,6 +218,7 @@ const AdminUsers: React.FC = () => {
                   <option value="BRANCH_MANAGER">Branch Manager</option>
                   <option value="WAITER">Waiter</option>
                   <option value="CUSTOMER">Customer</option>
+                  <option value="OPEN_ACCESS">Open Access</option>
                 </select>
               </div>
               <div className="flex justify-end space-x-2">
@@ -168,7 +233,7 @@ const AdminUsers: React.FC = () => {
                   type="submit"
                   className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                 >
-                  {selectedUser ? 'Update' : 'Add'}
+                  {selectedUser ? 'Update' : 'Create'}
                 </button>
               </div>
             </form>

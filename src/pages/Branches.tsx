@@ -1,37 +1,46 @@
-import React, { useState } from 'react';
+﻿import React, { useCallback, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Truck, Plus, Edit, Trash2, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
+import api from '../api/axiosConfig';
+import { useDataFetching } from '../hooks/useDataFetching';
 
 interface Branch {
   id: string;
   name: string;
-  address: string;
-  contactNumber: string;
-  isActive: boolean;
+  location_address?: string;
+  contactNumber?: string;
+  isActive?: boolean;
 }
 
 const Branches: React.FC = () => {
   const { user } = useAuth();
-  const [branches, setBranches] = useState<Branch[]>([
-    { 
-      id: '1', 
-      name: 'Downtown Branch', 
-      address: '123 Main St, Cityville', 
-      contactNumber: '+1 (555) 123-4567',
-      isActive: true 
-    },
-    { 
-      id: '2', 
-      name: 'Uptown Branch', 
-      address: '456 High St, Townsville', 
-      contactNumber: '+1 (555) 987-6543',
-      isActive: true 
-    }
-  ]);
-
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const canManageBranches = user?.role === 'ADMIN';
+  const canViewPublic = user?.role === 'OPEN_ACCESS';
+
+  const fetchBranches = useCallback(async () => {
+    if (canViewPublic) {
+      const response = await api.get('/branches/public');
+      return response.data as Branch[];
+    }
+
+    if (user?.role === 'BRANCH_MANAGER' && user.branch_id) {
+      const response = await api.get(`/branches/${user.branch_id}`);
+      return response.data ? [response.data as Branch] : [];
+    }
+
+    if (user?.role === 'HQ_MANAGER' || user?.role === 'ADMIN') {
+      const response = await api.get('/branches');
+      return response.data as Branch[];
+    }
+
+    return [];
+  }, [user, canViewPublic]);
+
+  const { data: branches = [], error, loading, refetch } = useDataFetching<Branch[]>(fetchBranches, []);
 
   const handleAddBranch = () => {
     setSelectedBranch(null);
@@ -43,33 +52,47 @@ const Branches: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDeleteBranch = (branchId: string) => {
+  const handleDeleteBranch = async (branchId: string) => {
     const confirmDelete = window.confirm('Are you sure you want to delete this branch?');
-    if (confirmDelete) {
-      setBranches(branches.filter(b => b.id !== branchId));
+    if (!confirmDelete) return;
+
+    try {
+      await api.delete(`/branches/${branchId}`);
       toast.success('Branch deleted successfully');
+      refetch();
+    } catch (err: unknown) {
+      toast.error('Failed to delete branch');
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (selectedBranch) {
-      // Update existing branch
-      setBranches(branches.map(b => b.id === selectedBranch.id ? selectedBranch : b));
-      toast.success('Branch updated successfully');
-    } else {
-      // Add new branch
-      const newBranch: Branch = {
-        id: String(branches.length + 1),
-        name: (e.target as any).name.value,
-        address: (e.target as any).address.value,
-        contactNumber: (e.target as any).contactNumber.value,
-        isActive: true
-      };
-      setBranches([...branches, newBranch]);
-      toast.success('Branch added successfully');
+    const form = e.currentTarget;
+    const name = (form.elements.namedItem('name') as HTMLInputElement).value;
+    const locationAddress = (form.elements.namedItem('address') as HTMLInputElement).value;
+    const contactNumber = (form.elements.namedItem('contactNumber') as HTMLInputElement).value;
+
+    try {
+      if (selectedBranch) {
+        await api.put(`/branches/${selectedBranch.id}`, {
+          name,
+          location_address: locationAddress,
+          contactNumber,
+        });
+        toast.success('Branch updated successfully');
+      } else {
+        await api.post('/branches', {
+          name,
+          location_address: locationAddress,
+          contactNumber,
+        });
+        toast.success('Branch added successfully');
+      }
+      setIsModalOpen(false);
+      refetch();
+    } catch (err: unknown) {
+      toast.error('Failed to save branch');
     }
-    setIsModalOpen(false);
   };
 
   return (
@@ -77,58 +100,76 @@ const Branches: React.FC = () => {
       <div className="flex justify-between items-center mb-8">
         <div className="flex items-center">
           <Truck className="w-10 h-10 mr-4 text-orange-500" />
-          <h1 className="text-4xl font-bold text-gray-800">Branch Management</h1>
+          <div>
+            <h1 className="text-4xl font-bold text-gray-800">Branch Management</h1>
+            <p className="text-gray-600">
+              {canViewPublic ? 'Browse public branches' : 'Manage and review branch locations'}
+            </p>
+          </div>
         </div>
-        <button 
-          onClick={handleAddBranch}
-          className="flex items-center bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600 transition"
-        >
-          <Plus className="w-5 h-5 mr-2" /> Add Branch
-        </button>
+        {canManageBranches && (
+          <button
+            onClick={handleAddBranch}
+            className="flex items-center bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600 transition"
+          >
+            <Plus className="w-5 h-5 mr-2" /> Add Branch
+          </button>
+        )}
       </div>
 
-      {user && (
+      {loading && <p className="text-gray-600">Loading branches...</p>}
+      {error && <p className="text-red-500">Failed to load branches.</p>}
+
+      {!loading && branches.length === 0 && (
+        <div className="bg-white shadow-md rounded-lg p-6">
+          <p className="text-gray-700">No branches available for your account.</p>
+        </div>
+      )}
+
+      {branches.length > 0 && (
         <div className="bg-white shadow-md rounded-lg overflow-hidden">
           <table className="w-full">
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-4 py-3 text-left">Name</th>
                 <th className="px-4 py-3 text-left">Address</th>
-                <th className="px-4 py-3 text-left">Contact Number</th>
+                <th className="px-4 py-3 text-left">Contact</th>
                 <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                {canManageBranches && <th className="px-4 py-3 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody>
-              {branches.map(b => (
-                <tr key={b.id} className="border-b hover:bg-gray-50">
-                  <td className="px-4 py-3">{b.name}</td>
+              {branches.map((branch) => (
+                <tr key={branch.id} className="border-b hover:bg-gray-50">
+                  <td className="px-4 py-3">{branch.name}</td>
                   <td className="px-4 py-3 flex items-center">
                     <MapPin className="w-4 h-4 mr-2 text-gray-500" />
-                    {b.address}
+                    {branch.location_address || 'No address provided'}
                   </td>
-                  <td className="px-4 py-3">{b.contactNumber}</td>
+                  <td className="px-4 py-3">{branch.contactNumber || 'N/A'}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded text-xs ${b.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                      {b.isActive ? 'Active' : 'Inactive'}
+                    <span className={`px-2 py-1 rounded text-xs ${branch.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {branch.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end space-x-2">
-                      <button 
-                        onClick={() => handleEditBranch(b)}
-                        className="text-blue-500 hover:text-blue-700"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteBranch(b.id)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
+                  {canManageBranches && (
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end space-x-2">
+                        <button
+                          onClick={() => handleEditBranch(branch)}
+                          className="text-blue-500 hover:text-blue-700"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBranch(branch.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -145,43 +186,42 @@ const Branches: React.FC = () => {
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">Branch Name</label>
-                <input 
-                  type="text" 
-                  name="name" 
+                <input
+                  type="text"
+                  name="name"
                   defaultValue={selectedBranch?.name}
-                  required 
-                  className="w-full px-3 py-2 border rounded" 
+                  required
+                  className="w-full px-3 py-2 border rounded"
                 />
               </div>
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">Address</label>
-                <input 
-                  type="text" 
-                  name="address" 
-                  defaultValue={selectedBranch?.address}
-                  required 
-                  className="w-full px-3 py-2 border rounded" 
+                <input
+                  type="text"
+                  name="address"
+                  defaultValue={selectedBranch?.location_address}
+                  required
+                  className="w-full px-3 py-2 border rounded"
                 />
               </div>
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">Contact Number</label>
-                <input 
-                  type="tel" 
-                  name="contactNumber" 
+                <input
+                  type="tel"
+                  name="contactNumber"
                   defaultValue={selectedBranch?.contactNumber}
-                  required 
-                  className="w-full px-3 py-2 border rounded" 
+                  className="w-full px-3 py-2 border rounded"
                 />
               </div>
               <div className="flex justify-end space-x-2">
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   type="submit"
                   className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
                 >

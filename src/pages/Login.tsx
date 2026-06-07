@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { Lock, Mail, User } from 'lucide-react';
 import AnimatedBackground from '../components/AnimatedBackground';
-import { UserRole } from '../types/index';
+import api from '../api/axiosConfig';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -12,44 +12,17 @@ const Login: React.FC = () => {
   const { login, loginAsGuest } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Simulated authentication (replace with actual backend call)
-    const mockUsers: Array<{ id: string; email: string; role: UserRole; firstName: string; lastName: string; }> = [
-      { 
-        id: '1', 
-        email: 'admin@steakz.com', 
-        role: 'ADMIN', 
-        firstName: 'Admin', 
-        lastName: 'User' 
-      },
-      { 
-        id: '2', 
-        email: 'manager@steakz.com', 
-        role: 'HQ_MANAGER', 
-        firstName: 'Manager', 
-        lastName: 'User' 
-      },
-      { 
-        id: '3', 
-        email: 'waiter@steakz.com', 
-        role: 'WAITER', 
-        firstName: 'Waiter', 
-        lastName: 'User' 
-      }
-    ];
-
-    const user = mockUsers.find(u => u.email === email);
-
-    if (user && password.length >= 6) {
-      // Simulated token generation
-      const token = `token_${Math.random().toString(36).substring(2)}`;
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      const { user, token } = response.data;
       login(token, user);
       navigate('/dashboard');
-    } else {
+    } catch (error: unknown) {
       toast.error('Invalid Login', {
-        description: 'Please check your email and password'
+        description: 'Please check your email and password',
       });
     }
   };
@@ -104,6 +77,12 @@ const Login: React.FC = () => {
           >
             <User className="mr-2" size={16} /> Continue as Guest
           </button>
+          <p className="mt-4 text-sm text-gray-600">
+            New to Steakz?{' '}
+            <Link to="/register" className="text-orange-500 hover:text-orange-600">
+              Create an account
+            </Link>
+          </p>
         </div>
       </div>
     </div>

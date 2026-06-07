@@ -23,13 +23,14 @@ const UserMenu: React.FC = () => {
   };
 
   return (
-    <div className="relative">
-      <button 
-        onClick={toggleMenu}
-        className="flex items-center justify-center w-10 h-10 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition"
-      >
-        <UserIcon size={20} />
-      </button>
+    <div className="fixed top-4 right-4 z-50">
+      <div className="relative">
+        <button 
+          onClick={toggleMenu}
+          className="flex items-center justify-center w-10 h-10 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition"
+        >
+          <UserIcon size={20} />
+        </button>
 
       {isMenuOpen && (
         <div className="absolute right-0 top-full mt-2 w-64 bg-white shadow-lg rounded-lg border z-50">
@@ -61,6 +62,7 @@ const UserMenu: React.FC = () => {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 };

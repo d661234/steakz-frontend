@@ -12,6 +12,7 @@ const MenuManagement = lazy(() => import('../pages/MenuManagement').then(module 
 const Orders = lazy(() => import('../pages/Orders').then(module => ({ default: module.default })));
 const Reports = lazy(() => import('../pages/Reports').then(module => ({ default: module.default })));
 const Settings = lazy(() => import('../pages/Settings').then(module => ({ default: module.default })));
+const Register = lazy(() => import('../pages/Register').then(module => ({ default: module.default })));
 
 const AppRoutes: React.FC = () => {
   const handleRouteError = (error: Error, errorInfo: React.ErrorInfo) => {
@@ -50,7 +51,7 @@ const AppRoutes: React.FC = () => {
           <Route 
             path="/branches" 
             element={
-              <ProtectedRoute requiredRoles={['BRANCH_MANAGER', 'HQ_MANAGER', 'ADMIN']}>
+              <ProtectedRoute requiredRoles={['BRANCH_MANAGER', 'HQ_MANAGER', 'ADMIN', 'OPEN_ACCESS']}>
                 <ErrorBoundary>
                   <Branches />
                 </ErrorBoundary>
@@ -97,6 +98,11 @@ const AppRoutes: React.FC = () => {
               </ProtectedRoute>
             } 
           />
+          <Route path="/register" element={
+            <ErrorBoundary>
+              <Register />
+            </ErrorBoundary>
+          } />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

@@ -1,40 +1,71 @@
-import React, { useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Utensils, Plus, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import api from '../api/axiosConfig';
+
+interface Branch {
+  id: string;
+  name: string;
+}
 
 interface MenuItem {
   id: string;
-  name: string;
-  description: string;
+  item_name: string;
+  description?: string;
   price: number;
-  category: string;
-  isAvailable: boolean;
+  category?: string;
+  availability_status: boolean;
+  branch_id: string;
 }
 
 const MenuManagement: React.FC = () => {
   const { user } = useAuth();
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([
-    { 
-      id: '1', 
-      name: 'Classic Burger', 
-      description: 'Juicy beef patty with fresh lettuce and tomato',
-      price: 12.99,
-      category: 'Main Course',
-      isAvailable: true
-    },
-    { 
-      id: '2', 
-      name: 'Caesar Salad', 
-      description: 'Fresh romaine lettuce with parmesan and croutons',
-      price: 8.50,
-      category: 'Salad',
-      isAvailable: true
-    }
-  ]);
-
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const canManageMenu = user?.role === 'ADMIN' || user?.role === 'BRANCH_MANAGER';
+
+  useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        if (user?.role === 'BRANCH_MANAGER' || user?.role === 'WAITER') {
+          if (!user.branch_id) return;
+          setBranches([{ id: user.branch_id, name: 'My Branch' }]);
+          setSelectedBranchId(user.branch_id);
+          return;
+        }
+
+        const response = await api.get('/branches');
+        setBranches(response.data || []);
+        if (!selectedBranchId && response.data.length > 0) {
+          setSelectedBranchId(response.data[0].id);
+        }
+      } catch (error: unknown) {
+        toast.error('Failed to load branches');
+      }
+    };
+
+    fetchBranches();
+  }, [user, selectedBranchId]);
+
+  useEffect(() => {
+    if (!selectedBranchId) return;
+
+    const fetchMenu = async () => {
+      try {
+        const response = await api.get(`/branches/${selectedBranchId}/menu`);
+        setMenuItems(response.data);
+      } catch (error: unknown) {
+        toast.error('Failed to load menu items');
+      }
+    };
+
+    fetchMenu();
+  }, [selectedBranchId]);
 
   const handleAddItem = () => {
     setSelectedItem(null);
@@ -46,36 +77,62 @@ const MenuManagement: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDeleteItem = (itemId: string) => {
+  const handleDeleteItem = async (itemId: string) => {
     const confirmDelete = window.confirm('Are you sure you want to delete this menu item?');
-    if (confirmDelete) {
-      setMenuItems(menuItems.filter(item => item.id !== itemId));
+    if (!confirmDelete) return;
+
+    try {
+      await api.delete(`/branches/menu/${itemId}`);
       toast.success('Menu item deleted successfully');
+      setMenuItems(menuItems.filter((item) => item.id !== itemId));
+    } catch (error: unknown) {
+      toast.error('Failed to delete menu item');
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (selectedItem) {
-      // Update existing item
-      setMenuItems(menuItems.map(item => 
-        item.id === selectedItem.id ? selectedItem : item
-      ));
-      toast.success('Menu item updated successfully');
-    } else {
-      // Add new item
-      const newItem: MenuItem = {
-        id: String(menuItems.length + 1),
-        name: (e.target as any).name.value,
-        description: (e.target as any).description.value,
-        price: parseFloat((e.target as any).price.value),
-        category: (e.target as any).category.value,
-        isAvailable: true
-      };
-      setMenuItems([...menuItems, newItem]);
-      toast.success('Menu item added successfully');
+
+    const form = e.currentTarget;
+    const item_name = (form.elements.namedItem('name') as HTMLInputElement).value;
+    const description = (form.elements.namedItem('description') as HTMLInputElement).value;
+    const price = parseFloat((form.elements.namedItem('price') as HTMLInputElement).value);
+    const category = (form.elements.namedItem('category') as HTMLSelectElement).value;
+    const availability_status = (form.elements.namedItem('availability') as HTMLInputElement).checked;
+    const branchId = selectedBranchId || user?.branch_id;
+
+    if (!branchId) {
+      toast.error('A branch must be selected');
+      return;
     }
-    setIsModalOpen(false);
+
+    try {
+      if (selectedItem) {
+        const response = await api.put(`/branches/menu/${selectedItem.id}`, {
+          item_name,
+          description,
+          price,
+          category,
+          availability_status,
+        });
+        setMenuItems(menuItems.map((item) => item.id === selectedItem.id ? response.data : item));
+        toast.success('Menu item updated successfully');
+      } else {
+        const response = await api.post(`/branches/${branchId}/menu`, {
+          item_name,
+          description,
+          price,
+          category,
+          availability_status,
+        });
+        setMenuItems([...menuItems, response.data]);
+        toast.success('Menu item added successfully');
+      }
+
+      setIsModalOpen(false);
+    } catch (error: unknown) {
+      toast.error('Failed to save menu item');
+    }
   };
 
   return (
@@ -83,50 +140,68 @@ const MenuManagement: React.FC = () => {
       <div className="flex justify-between items-center mb-8">
         <div className="flex items-center">
           <Utensils className="w-10 h-10 mr-4 text-green-500" />
-          <h1 className="text-4xl font-bold text-gray-800">Menu Management</h1>
+          <div>
+            <h1 className="text-4xl font-bold text-gray-800">Menu Management</h1>
+            <p className="text-gray-600">Manage menu items for your assigned branch.</p>
+          </div>
         </div>
-        <button 
-          onClick={handleAddItem}
-          className="flex items-center bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition"
-        >
-          <Plus className="w-5 h-5 mr-2" /> Add Menu Item
-        </button>
+        {canManageMenu && (
+          <button 
+            onClick={handleAddItem}
+            className="flex items-center bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition"
+          >
+            <Plus className="w-5 h-5 mr-2" /> Add Menu Item
+          </button>
+        )}
       </div>
 
-      {user && (
-        <div className="bg-white shadow-md rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-4 py-3 text-left">Name</th>
-                <th className="px-4 py-3 text-left">Description</th>
-                <th className="px-4 py-3 text-left">Price</th>
-                <th className="px-4 py-3 text-left">Category</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {menuItems.map(item => (
-                <tr key={item.id} className="border-b hover:bg-gray-50">
-                  <td className="px-4 py-3">{item.name}</td>
-                  <td className="px-4 py-3">{item.description}</td>
-                  <td className="px-4 py-3">${item.price.toFixed(2)}</td>
-                  <td className="px-4 py-3">{item.category}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded text-xs ${item.isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                      {item.isAvailable ? 'Available' : 'Unavailable'}
-                    </span>
-                  </td>
+      {branches.length > 0 && (user?.role === 'ADMIN' || user?.role === 'HQ_MANAGER') && (
+        <div className="mb-6">
+          <label className="block text-gray-700 mb-2">Select Branch</label>
+          <select
+            value={selectedBranchId}
+            onChange={(e) => setSelectedBranchId(e.target.value)}
+            className="w-full px-3 py-2 border rounded"
+          >
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>{branch.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="px-4 py-3 text-left">Name</th>
+              <th className="px-4 py-3 text-left">Category</th>
+              <th className="px-4 py-3 text-left">Price</th>
+              <th className="px-4 py-3 text-left">Status</th>
+              {(canManageMenu) && <th className="px-4 py-3 text-right">Actions</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {menuItems.map((item) => (
+              <tr key={item.id} className="border-b hover:bg-gray-50">
+                <td className="px-4 py-3">{item.item_name}</td>
+                <td className="px-4 py-3">{item.category || 'Uncategorized'}</td>
+                <td className="px-4 py-3">${item.price.toFixed(2)}</td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-1 rounded text-xs ${item.availability_status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {item.availability_status ? 'Available' : 'Unavailable'}
+                  </span>
+                </td>
+                {canManageMenu && (
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end space-x-2">
-                      <button 
+                      <button
                         onClick={() => handleEditItem(item)}
                         className="text-blue-500 hover:text-blue-700"
                       >
                         <Edit className="w-5 h-5" />
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDeleteItem(item.id)}
                         className="text-red-500 hover:text-red-700"
                       >
@@ -134,12 +209,12 @@ const MenuManagement: React.FC = () => {
                       </button>
                     </div>
                   </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -149,41 +224,40 @@ const MenuManagement: React.FC = () => {
             </h2>
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2">Item Name</label>
-                <input 
-                  type="text" 
-                  name="name" 
-                  defaultValue={selectedItem?.name}
-                  required 
-                  className="w-full px-3 py-2 border rounded" 
+                <label className="block text-gray-700 mb-2">Name</label>
+                <input
+                  type="text"
+                  name="name"
+                  defaultValue={selectedItem?.item_name}
+                  required
+                  className="w-full px-3 py-2 border rounded"
                 />
               </div>
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">Description</label>
-                <textarea 
-                  name="description" 
+                <textarea
+                  name="description"
                   defaultValue={selectedItem?.description}
-                  required 
-                  className="w-full px-3 py-2 border rounded" 
+                  className="w-full px-3 py-2 border rounded"
                 />
               </div>
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">Price</label>
-                <input 
-                  type="number" 
-                  name="price" 
-                  step="0.01" 
+                <input
+                  type="number"
+                  name="price"
+                  step="0.01"
                   defaultValue={selectedItem?.price}
-                  required 
-                  className="w-full px-3 py-2 border rounded" 
+                  required
+                  className="w-full px-3 py-2 border rounded"
                 />
               </div>
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">Category</label>
-                <select 
-                  name="category" 
-                  defaultValue={selectedItem?.category}
-                  required 
+                <select
+                  name="category"
+                  defaultValue={selectedItem?.category || 'Main Course'}
+                  required
                   className="w-full px-3 py-2 border rounded"
                 >
                   <option value="Appetizer">Appetizer</option>
@@ -192,6 +266,16 @@ const MenuManagement: React.FC = () => {
                   <option value="Beverage">Beverage</option>
                   <option value="Salad">Salad</option>
                 </select>
+              </div>
+              <div className="mb-4 flex items-center">
+                <input
+                  id="availability"
+                  type="checkbox"
+                  name="availability"
+                  defaultChecked={selectedItem?.availability_status ?? true}
+                  className="mr-2"
+                />
+                <label htmlFor="availability" className="text-gray-700">Available</label>
               </div>
               <div className="flex justify-end space-x-2">
                 <button 

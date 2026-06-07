@@ -1,95 +1,138 @@
-import React, { useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ShoppingCart, Plus, Edit, Trash2, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
+import api from '../api/axiosConfig';
+
+interface Branch {
+  id: string;
+  name: string;
+}
+
+interface OrderItem {
+  id: string;
+  menuItem: { item_name: string };
+  quantity: number;
+  price: number;
+}
 
 interface Order {
   id: string;
-  customerName: string;
-  items: { name: string; quantity: number; price: number }[];
-  totalPrice: number;
-  status: 'PENDING' | 'APPROVED' | 'COMPLETED' | 'CANCELLED';
+  branch: Branch;
+  user?: { firstName?: string; lastName?: string; email: string };
+  status: string;
+  total_amount: number;
+  items: OrderItem[];
 }
 
 const Orders: React.FC = () => {
   const { user } = useAuth();
-  const [orders, setOrders] = useState<Order[]>([
-    { 
-      id: '1', 
-      customerName: 'John Doe',
-      items: [
-        { name: 'Classic Burger', quantity: 2, price: 12.99 },
-        { name: 'Caesar Salad', quantity: 1, price: 8.50 }
-      ],
-      totalPrice: 34.48,
-      status: 'PENDING'
-    },
-    { 
-      id: '2', 
-      customerName: 'Jane Smith',
-      items: [
-        { name: 'Grilled Chicken', quantity: 1, price: 15.99 }
-      ],
-      totalPrice: 15.99,
-      status: 'APPROVED'
-    }
-  ]);
-
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [amount, setAmount] = useState('');
 
-  const handleAddOrder = () => {
-    setSelectedOrder(null);
-    setIsModalOpen(true);
-  };
+  const canManageStatus = ['WAITER', 'BRANCH_MANAGER', 'ADMIN'].includes(user?.role || '');
+  const canCreateOrder = ['CUSTOMER', 'WAITER', 'ADMIN'].includes(user?.role || '');
 
-  const handleEditOrder = (order: Order) => {
-    setSelectedOrder(order);
-    setIsModalOpen(true);
-  };
-
-  const handleDeleteOrder = (orderId: string) => {
-    const confirmDelete = window.confirm('Are you sure you want to delete this order?');
-    if (confirmDelete) {
-      setOrders(orders.filter(order => order.id !== orderId));
-      toast.success('Order deleted successfully');
+  const fetchOrders = async () => {
+    try {
+      const endpoint = user?.role === 'CUSTOMER' ? '/customer/orders' : '/orders';
+      const response = await api.get(endpoint);
+      setOrders(response.data || []);
+    } catch (error: unknown) {
+      toast.error('Failed to load orders');
     }
   };
 
-  const handleUpdateStatus = (orderId: string, status: Order['status']) => {
-    setOrders(orders.map(order => 
-      order.id === orderId ? { ...order, status } : order
-    ));
-    toast.success(`Order status updated to ${status}`);
+  const fetchBranches = async () => {
+    try {
+      if (user?.role === 'CUSTOMER') {
+        const response = await api.get('/branches/public');
+        setBranches(response.data || []);
+      } else if (user?.role === 'ADMIN' || user?.role === 'HQ_MANAGER') {
+        const response = await api.get('/branches');
+        setBranches(response.data || []);
+      } else if (user?.role === 'WAITER' || user?.role === 'BRANCH_MANAGER') {
+        if (user.branch_id) {
+          setBranches([{ id: user.branch_id, name: 'My Branch' }]);
+          setSelectedBranchId(user.branch_id);
+        }
+      }
+    } catch (error: unknown) {
+      toast.error('Failed to load branches');
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchOrders();
+    fetchBranches();
+  }, [user]);
+
+  useEffect(() => {
+    if (branches.length > 0 && !selectedBranchId) {
+      setSelectedBranchId(branches[0].id);
+    }
+  }, [branches, selectedBranchId]);
+
+  const handleCreateOrder = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (selectedOrder) {
-      // Update existing order
-      setOrders(orders.map(order => 
-        order.id === selectedOrder.id ? selectedOrder : order
-      ));
-      toast.success('Order updated successfully');
-    } else {
-      // Add new order
-      const newOrder: Order = {
-        id: String(orders.length + 1),
-        customerName: (e.target as any).customerName.value,
-        items: [
-          {
-            name: (e.target as any).itemName.value,
-            quantity: parseInt((e.target as any).quantity.value),
-            price: parseFloat((e.target as any).price.value)
-          }
-        ],
-        totalPrice: parseFloat((e.target as any).price.value) * parseInt((e.target as any).quantity.value),
-        status: 'PENDING'
-      };
-      setOrders([...orders, newOrder]);
-      toast.success('Order added successfully');
+
+    if (!selectedBranchId || !amount) {
+      toast.error('Branch and amount are required');
+      return;
     }
-    setIsModalOpen(false);
+
+    try {
+      const body: Record<string, unknown> = {
+        branch_id: selectedBranchId,
+        total_amount: parseFloat(amount),
+      };
+
+      if (user?.role !== 'CUSTOMER') {
+        body.customer_id = user?.id;
+      }
+
+      await api.post('/orders', body);
+      toast.success('Order created successfully');
+      setIsModalOpen(false);
+      setAmount('');
+      fetchOrders();
+    } catch (error: unknown) {
+      toast.error('Failed to create order');
+    }
+  };
+
+  const updateStatus = async (orderId: string, status: string) => {
+    try {
+      await api.patch(`/orders/${orderId}/status`, { status });
+      toast.success('Order status updated');
+      fetchOrders();
+    } catch (error: unknown) {
+      toast.error('Failed to update status');
+    }
+  };
+
+  const confirmPayment = async (orderId: string) => {
+    try {
+      await api.patch(`/orders/${orderId}/confirm`);
+      toast.success('Payment confirmed');
+      fetchOrders();
+    } catch (error: unknown) {
+      toast.error('Failed to confirm payment');
+    }
+  };
+
+  const handleReorder = async (orderId: string) => {
+    try {
+      await api.post(`/customer/orders/${orderId}/reorder`);
+      toast.success('Reorder placed successfully');
+      fetchOrders();
+    } catch (error: unknown) {
+      toast.error('Failed to reorder');
+    }
   };
 
   return (
@@ -99,131 +142,114 @@ const Orders: React.FC = () => {
           <ShoppingCart className="w-10 h-10 mr-4 text-green-500" />
           <h1 className="text-4xl font-bold text-gray-800">Order Management</h1>
         </div>
-        <button 
-          onClick={handleAddOrder}
-          className="flex items-center bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition"
-        >
-          <Plus className="w-5 h-5 mr-2" /> Add Order
-        </button>
+        {canCreateOrder && (
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition"
+          >
+            <Plus className="w-5 h-5 mr-2" /> Create Order
+          </button>
+        )}
       </div>
 
-      {user && (
-        <div className="bg-white shadow-md rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-4 py-3 text-left">Order ID</th>
-                <th className="px-4 py-3 text-left">Customer Name</th>
-                <th className="px-4 py-3 text-left">Items</th>
-                <th className="px-4 py-3 text-left">Total Price</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map(order => (
-                <tr key={order.id} className="border-b hover:bg-gray-50">
-                  <td className="px-4 py-3">#{order.id}</td>
-                  <td className="px-4 py-3">{order.customerName}</td>
-                  <td className="px-4 py-3">
-                    {order.items.map(item => `${item.name} (${item.quantity})`).join(', ')}
-                  </td>
-                  <td className="px-4 py-3">${order.totalPrice.toFixed(2)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                      order.status === 'APPROVED' ? 'bg-blue-100 text-blue-800' :
-                      order.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {order.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end space-x-2">
+      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="px-4 py-3 text-left">Order ID</th>
+              <th className="px-4 py-3 text-left">Branch</th>
+              <th className="px-4 py-3 text-left">Customer</th>
+              <th className="px-4 py-3 text-left">Items</th>
+              <th className="px-4 py-3 text-left">Total</th>
+              <th className="px-4 py-3 text-left">Status</th>
+              <th className="px-4 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order) => (
+              <tr key={order.id} className="border-b hover:bg-gray-50">
+                <td className="px-4 py-3">#{order.id}</td>
+                <td className="px-4 py-3">{order.branch?.name || 'Unknown'}</td>
+                <td className="px-4 py-3">{order.user ? `${order.user.firstName || ''} ${order.user.lastName || ''}`.trim() || order.user.email : 'N/A'}</td>
+                <td className="px-4 py-3">{order.items.map((item) => `${item.menuItem.item_name}(${item.quantity})`).join(', ')}</td>
+                <td className="px-4 py-3">${order.total_amount.toFixed(2)}</td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-1 rounded text-xs ${order.status === 'PAID' || order.status === 'FINISHED_COOKING' ? 'bg-green-100 text-green-800' : order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                    {order.status}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex justify-end space-x-2">
+                    {canManageStatus && order.status !== 'CANCELLED' && order.status !== 'PAID' && (
                       <button 
-                        onClick={() => handleEditOrder(order)}
+                        onClick={() => updateStatus(order.id, 'PAID')}
+                        className="text-green-500 hover:text-green-700"
+                      >
+                        <Check className="w-5 h-5" />
+                      </button>
+                    )}
+                    {(user?.role === 'CUSTOMER' || canManageStatus) && (
+                      <button 
+                        onClick={() => confirmPayment(order.id)}
                         className="text-blue-500 hover:text-blue-700"
                       >
-                        <Edit className="w-5 h-5" />
+                        <X className="w-5 h-5" />
                       </button>
+                    )}
+                    {user?.role === 'CUSTOMER' && (
                       <button 
-                        onClick={() => handleDeleteOrder(order.id)}
-                        className="text-red-500 hover:text-red-700"
+                        onClick={() => handleReorder(order.id)}
+                        className="text-orange-500 hover:text-orange-700"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        <Plus className="w-5 h-5" />
                       </button>
-                      {order.status === 'PENDING' && (
-                        <>
-                          <button 
-                            onClick={() => handleUpdateStatus(order.id, 'APPROVED')}
-                            className="text-green-500 hover:text-green-700"
-                          >
-                            <Check className="w-5 h-5" />
-                          </button>
-                          <button 
-                            onClick={() => handleUpdateStatus(order.id, 'CANCELLED')}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-96">
-            <h2 className="text-2xl font-bold mb-4">
-              {selectedOrder ? 'Edit Order' : 'Add New Order'}
-            </h2>
-            <form onSubmit={handleSubmit}>
+            <h2 className="text-2xl font-bold mb-4">Create Order</h2>
+            <form onSubmit={handleCreateOrder}>
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2">Customer Name</label>
-                <input 
-                  type="text" 
-                  name="customerName" 
-                  defaultValue={selectedOrder?.customerName}
-                  required 
-                  className="w-full px-3 py-2 border rounded" 
+                <label className="block text-gray-700 mb-2">Branch</label>
+                <select
+                  value={selectedBranchId}
+                  onChange={(e) => setSelectedBranchId(e.target.value)}
+                  className="w-full px-3 py-2 border rounded"
+                  required
+                >
+                  <option value="">Select branch</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>{branch.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-2">Total Amount</label>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  step="0.01"
+                  required
+                  className="w-full px-3 py-2 border rounded"
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2">Item Name</label>
-                <input 
-                  type="text" 
-                  name="itemName" 
-                  defaultValue={selectedOrder?.items[0]?.name}
-                  required 
-                  className="w-full px-3 py-2 border rounded" 
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-2">Quantity</label>
-                <input 
-                  type="number" 
-                  name="quantity" 
-                  defaultValue={selectedOrder?.items[0]?.quantity || 1}
-                  required 
-                  className="w-full px-3 py-2 border rounded" 
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-2">Price</label>
-                <input 
-                  type="number" 
-                  name="price" 
-                  step="0.01" 
-                  defaultValue={selectedOrder?.items[0]?.price}
-                  required 
-                  className="w-full px-3 py-2 border rounded" 
+                <label className="block text-gray-700 mb-2">Customer Email</label>
+                <input
+                  type="email"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  disabled={user?.role === 'CUSTOMER'}
+                  className="w-full px-3 py-2 border rounded bg-gray-50"
                 />
               </div>
               <div className="flex justify-end space-x-2">
@@ -238,7 +264,7 @@ const Orders: React.FC = () => {
                   type="submit"
                   className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
                 >
-                  {selectedOrder ? 'Update' : 'Add'}
+                  Create
                 </button>
               </div>
             </form>
