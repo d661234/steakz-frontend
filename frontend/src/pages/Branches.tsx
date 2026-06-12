@@ -1,7 +1,6 @@
 ﻿import React, { useCallback, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Truck, Plus, Edit, Trash2, MapPin, ExternalLink } from 'lucide-react';
+import { Truck, Plus, Edit, Trash2, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../api/axiosConfig';
 import { useDataFetching } from '../hooks/useDataFetching';
@@ -20,15 +19,9 @@ const Branches: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const canManageBranches = user?.role === 'ADMIN';
-  const canViewPublic = user?.role === 'OPEN_ACCESS';
   const canViewOwnBranch = user?.role === 'BRANCH_MANAGER';
 
   const fetchBranches = useCallback(async () => {
-    if (canViewPublic) {
-      const response = await api.get('/branches/public');
-      return response.data as Branch[];
-    }
-
     if (canViewOwnBranch && user?.branch_id) {
       const response = await api.get(`/branches/${user.branch_id}`);
       return response.data ? [response.data as Branch] : [];
@@ -40,7 +33,7 @@ const Branches: React.FC = () => {
     }
 
     return [];
-  }, [user, canViewPublic, canViewOwnBranch]);
+  }, [user, canViewOwnBranch]);
 
   const { data: branches = [], error, loading, refetch } = useDataFetching<Branch[]>(fetchBranches, []);
 
@@ -104,12 +97,10 @@ const Branches: React.FC = () => {
           <Truck className="w-10 h-10 mr-4 text-orange-500" />
           <div>
             <h1 className="text-4xl font-bold text-gray-800">
-              {canViewPublic ? 'Browse Steakz Branches' : canManageBranches ? 'Branch Management' : 'Branch Overview'}
+              {canManageBranches ? 'Branch Management' : 'Branch Overview'}
             </h1>
             <p className="text-gray-600">
-              {canViewPublic
-                ? 'Browse branches and select a location to view the menu.'
-                : canManageBranches
+              {canManageBranches
                 ? 'Manage and review branch locations'
                 : 'Review your branch details and location information.'}
             </p>
@@ -143,7 +134,7 @@ const Branches: React.FC = () => {
                 <th className="px-4 py-3 text-left">Address</th>
                 <th className="px-4 py-3 text-left">Contact</th>
                 <th className="px-4 py-3 text-left">Status</th>
-                {(canViewPublic || canManageBranches) && <th className="px-4 py-3 text-right">Actions</th>}
+                {canManageBranches && <th className="px-4 py-3 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -160,34 +151,21 @@ const Branches: React.FC = () => {
                       {branch.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  {(canViewPublic || canManageBranches) && (
+                  {canManageBranches && (
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end items-center space-x-2">
-                        {canViewPublic && (
-                          <Link
-                            to={`/menu?branchId=${branch.id}`}
-                            className="inline-flex items-center text-blue-500 hover:text-blue-700"
-                          >
-                            <ExternalLink className="w-4 h-4 mr-1" />
-                            View Menu
-                          </Link>
-                        )}
-                        {canManageBranches && (
-                          <>
-                            <button
-                              onClick={() => handleEditBranch(branch)}
-                              className="text-blue-500 hover:text-blue-700"
-                            >
-                              <Edit className="w-5 h-5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteBranch(branch.id)}
-                              className="text-red-500 hover:text-red-700"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
-                          </>
-                        )}
+                        <button
+                          onClick={() => handleEditBranch(branch)}
+                          className="text-blue-500 hover:text-blue-700"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBranch(branch.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
                       </div>
                     </td>
                   )}
