@@ -22,7 +22,6 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (token: string, user: User) => void;
   logout: () => void;
-  loginAsGuest: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -77,30 +76,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     toast.success('Logged out successfully');
   };
 
-  const loginAsGuest = () => {
-    const guestUser: User = {
-      id: 'guest_' + Date.now(),
-      email: 'guest@steakz.com',
-      role: 'OPEN_ACCESS',
-      firstName: 'Guest'
-    };
-
-    // Generate a temporary token for guest
-    const guestToken = `guest_${Math.random().toString(36).substring(2)}`;
-    
-    login(guestToken, guestUser);
-    toast.info('Logged in as Guest', {
-      description: 'Limited access mode activated'
-    });
-  };
-
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isAuthenticated, 
-      login, 
-      logout,
-      loginAsGuest 
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated,
+      login,
+      logout
     }}>
       {children}
     </AuthContext.Provider>
