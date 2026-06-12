@@ -1,128 +1,119 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { ReportService } from '../services/reportService.js';
 import { UserService } from '../services/userService.js';
 import { BranchService } from '../services/branchService.js';
 import { UserRole } from '@prisma/client';
 import prisma from '../lib/prisma.js';
+import { AuthRequest } from '../middleware/auth.js';
 
-type AssignStaffBody = {
-  staffId: number;
-  branchId: number;
-};
+type AssignStaffBody = { staffId: number; branchId: number };
+
+// Returns the branch_id to filter by, or undefined if the user should see all branches
+const branchFilter = (req: AuthRequest): number | undefined =>
+  req.user?.role === UserRole.BRANCH_MANAGER && req.user.branch_id
+    ? req.user.branch_id
+    : undefined;
 
 export class HQController {
-  static async getSalesAnalytics(req: Request, res: Response) {
+  static async getSalesAnalytics(req: AuthRequest, res: Response) {
     try {
-      const report = await ReportService.getSalesReportPerBranch();
+      const report = await ReportService.getSalesReportPerBranch(branchFilter(req));
       res.status(200).json(report);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: 'Failed to fetch sales analytics' });
     }
   }
 
-  static async getBranchPerformance(req: Request, res: Response) {
+  static async getBranchPerformance(req: AuthRequest, res: Response) {
     try {
-      const performance = await ReportService.getBranchPerformance();
+      const performance = await ReportService.getBranchPerformance(branchFilter(req));
       res.status(200).json(performance);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: 'Failed to fetch branch performance' });
     }
   }
 
-  static async getAllStaff(req: Request, res: Response) {
+  static async getGlobalStats(req: AuthRequest, res: Response) {
     try {
-      const staff = await UserService.getStaffMembers();
-      res.status(200).json(staff);
-    } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch staff members' });
-    }
-  }
-
-  static async assignStaffToBranch(req: Request, res: Response) {
-    try {
-      const { staffId, branchId } = req.body as AssignStaffBody;
-
-      if (!staffId || !branchId) {
-        return res.status(400).json({ message: 'staffId and branchId are required' });
-      }
-
-      const staff = await UserService.getUserById(staffId);
-      if (!staff) {
-        return res.status(404).json({ message: 'Staff member not found' });
-      }
-
-      const allowedRoles: readonly UserRole[] = [UserRole.BRANCH_MANAGER, UserRole.WAITER];
-      if (!allowedRoles.includes(staff.role)) {
-        return res.status(400).json({ message: 'User role cannot be assigned to a branch' });
-      }
-
-      const branch = await BranchService.getBranchById(branchId);
-      if (!branch) {
-        return res.status(404).json({ message: 'Branch not found' });
-      }
-
-      const updatedStaff = await UserService.assignStaffToBranch(staffId, branchId);
-      res.status(200).json(updatedStaff);
-    } catch (error) {
-      res.status(500).json({ message: 'Failed to assign staff to branch' });
-    }
-  }
-
-  static async getSalesReport(req: Request, res: Response) {
-    try {
-      const report = await ReportService.getSalesReportPerBranch();
-      res.status(200).json(report);
-    } catch (error) {
-      res.status(500).json({ message: 'Failed to generate sales report' });
-    }
-  }
-
-  static async getGlobalStats(req: Request, res: Response) {
-    try {
-      const stats = await ReportService.getGlobalStats();
+      const stats = await ReportService.getGlobalStats(branchFilter(req));
       res.status(200).json(stats);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: 'Failed to fetch global stats' });
     }
   }
 
-  static async getPeakTimes(req: Request, res: Response) {
+  static async getPeakTimes(req: AuthRequest, res: Response) {
     try {
-      const peakTimes = await ReportService.getPeakOrderTimes();
+      const peakTimes = await ReportService.getPeakOrderTimes(branchFilter(req));
       res.status(200).json(peakTimes);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: 'Failed to fetch peak times' });
     }
   }
 
-  static async getCustomerFrequency(req: Request, res: Response) {
+  static async getCustomerFrequency(req: AuthRequest, res: Response) {
     try {
-      const frequency = await ReportService.getCustomerFrequency();
+      const frequency = await ReportService.getCustomerFrequency(branchFilter(req));
       res.status(200).json(frequency);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: 'Failed to fetch customer frequency' });
     }
   }
 
-  static async getMostViewedMenuItems(req: Request, res: Response) {
+  static async getMostViewedMenuItems(req: AuthRequest, res: Response) {
     try {
-      const items = await ReportService.getMostViewedMenuItems();
+      const items = await ReportService.getMostViewedMenuItems(branchFilter(req));
       res.status(200).json(items);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: 'Failed to fetch most viewed menu items' });
     }
   }
 
-  static async getInventoryAlerts(req: Request, res: Response) {
+  static async getInventoryAlerts(req: AuthRequest, res: Response) {
     try {
-      const alerts = await ReportService.getInventoryAlerts();
+      const alerts = await ReportService.getInventoryAlerts(branchFilter(req));
       res.status(200).json(alerts);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: 'Failed to fetch inventory alerts' });
     }
   }
 
-  static async createInventoryAlert(req: Request, res: Response) {
+  static async getAllStaff(req: AuthRequest, res: Response) {
+    try {
+      const bid = branchFilter(req);
+      const staff = bid
+        ? await UserService.getStaffByBranch(bid)
+        : await UserService.getStaffMembers();
+      res.status(200).json(staff);
+    } catch {
+      res.status(500).json({ message: 'Failed to fetch staff members' });
+    }
+  }
+
+  static async assignStaffToBranch(req: AuthRequest, res: Response) {
+    try {
+      const { staffId, branchId } = req.body as AssignStaffBody;
+      if (!staffId || !branchId) {
+        return res.status(400).json({ message: 'staffId and branchId are required' });
+      }
+      const staff = await UserService.getUserById(staffId);
+      if (!staff) return res.status(404).json({ message: 'Staff member not found' });
+
+      const allowedRoles: readonly UserRole[] = [UserRole.BRANCH_MANAGER, UserRole.WAITER, UserRole.CHEF];
+      if (!allowedRoles.includes(staff.role)) {
+        return res.status(400).json({ message: 'User role cannot be assigned to a branch' });
+      }
+      const branch = await BranchService.getBranchById(branchId);
+      if (!branch) return res.status(404).json({ message: 'Branch not found' });
+
+      const updatedStaff = await UserService.assignStaffToBranch(staffId, branchId);
+      res.status(200).json(updatedStaff);
+    } catch {
+      res.status(500).json({ message: 'Failed to assign staff to branch' });
+    }
+  }
+
+  static async createInventoryAlert(req: AuthRequest, res: Response) {
     try {
       const { branch_id, menuItemId, lowStockThreshold, currentStock } = req.body;
       if (!branch_id || !menuItemId || lowStockThreshold == null || currentStock == null) {
@@ -144,12 +135,21 @@ export class HQController {
     }
   }
 
-  static async deleteInventoryAlert(req: Request, res: Response) {
+  static async deleteInventoryAlert(req: AuthRequest, res: Response) {
     try {
       await prisma.inventoryAlert.delete({ where: { id: parseInt(req.params.id as string) } });
       res.status(200).json({ message: 'Inventory alert deleted successfully' });
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: 'Failed to delete inventory alert' });
+    }
+  }
+
+  static async getSalesReport(req: AuthRequest, res: Response) {
+    try {
+      const report = await ReportService.getSalesReportPerBranch(branchFilter(req));
+      res.status(200).json(report);
+    } catch {
+      res.status(500).json({ message: 'Failed to generate sales report' });
     }
   }
 }

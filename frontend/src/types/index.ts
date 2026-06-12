@@ -1,9 +1,9 @@
 import { ReactNode } from 'react';
 
-export type UserRole = 
-  | 'OPEN_ACCESS'
+export type UserRole =
   | 'CUSTOMER'
   | 'WAITER'
+  | 'CHEF'
   | 'BRANCH_MANAGER'
   | 'HQ_MANAGER'
   | 'ADMIN';
